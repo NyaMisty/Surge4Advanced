@@ -99,6 +99,9 @@ char LicEncContent[] = "\x03\x04\x02NSExtension";
                 };
             NSLog(@"generated licInfo: %@", licInfo);
             NSData *licInfoData = [NSJSONSerialization dataWithJSONObject:licInfo options:0 error: &error];
+            NSString *licInfoStr = [[NSString alloc] initWithData:licInfoData encoding:NSUTF8StringEncoding];
+            NSLog(@"generated licInfoJson: %@", licInfoStr);
+
             NSString *licInfoBase64 = [licInfoData base64EncodedStringWithOptions:0];
             wrapper(nil, @{
                 @"license": @{
@@ -130,6 +133,17 @@ char LicEncContent[] = "\x03\x04\x02NSExtension";
 %end
 
 
+// For unknown reason, on some of my device, the unlockTime also returns 94665600000
+// I really can't find out what happened, I'll just patch it here
+%hook SGUProFeatureDefine
+
+- (int64_t) unlockTime {
+    return 0;
+}
+
+%end
+
+
 void *pEVP_DigestVerifyFinal = NULL;
 
 %hookf(uint64_t, pEVP_DigestVerifyFinal, void *ctx, uint64_t a2, uint64_t a3) {
@@ -139,16 +153,28 @@ void *pEVP_DigestVerifyFinal = NULL;
 }
 
 %ctor {
-    unsigned char needle[] = "\x08\x01\x40\xF9\xA8\x83\x1C\xF8\xFF\x07\x00\xB9\x00\x10\x40\xF9\x08\x00\x40\xF9\x18\x45\x40\xF9\xA8\x46\x40\x39\x08\x02\x08\x37";
-    intptr_t imgBase = (intptr_t)_dyld_get_image_vmaddr_slide(0) + 0x100000000LL;
-    intptr_t imgBase2 = (intptr_t)_dyld_get_image_header(0);
-    NSLog(@"Surge image base at %p %p", (void *)imgBase, (void *)imgBase2);
-    //NSLog(@"Surge hdr %x %x %x %x %x", *(uint32_t *)(imgBase + 0x236730), *(uint32_t *)(imgBase + 0x236734), *(uint32_t *)(imgBase + 0x236738), *(uint32_t *)(imgBase + 0x23673c), *(uint32_t *)(imgBase + 0x236740));
-    char *pNeedle = (char *)memmem((void *)imgBase, 0x400000, needle, sizeof(needle) - 1);
-    NSLog(@"found pNeedle at %p", pNeedle);
-    if(pNeedle == NULL) {
-        exit(0);
+    // In Surge >= v4.14.0, OpenSSL is no longer statically linked
+    MSImageRef image = MSGetImageByName("@rpath/OpenSSL.framework/OpenSSL");
+    if (!image) {
+        // Static OpenSSL version (<= 4.13.0)
+        NSLog(@"Retriving EVP_DigestVerifyFinal using pattern because there's no OpenSSL framework");
+        unsigned char needle[] = "\x08\x01\x40\xF9\xA8\x83\x1C\xF8\xFF\x07\x00\xB9\x00\x10\x40\xF9\x08\x00\x40\xF9\x18\x45\x40\xF9\xA8\x46\x40\x39\x08\x02\x08\x37";
+        intptr_t imgBase = (intptr_t)_dyld_get_image_vmaddr_slide(0) + 0x100000000LL;
+        intptr_t imgBase2 = (intptr_t)_dyld_get_image_header(0);
+        NSLog(@"Surge image base at %p %p", (void *)imgBase, (void *)imgBase2);
+        //NSLog(@"Surge hdr %x %x %x %x %x", *(uint32_t *)(imgBase + 0x236730), *(uint32_t *)(imgBase + 0x236734), *(uint32_t *)(imgBase + 0x236738), *(uint32_t *)(imgBase + 0x23673c), *(uint32_t *)(imgBase + 0x236740));
+        char *pNeedle = (char *)memmem((void *)imgBase, 0x400000, needle, sizeof(needle) - 1);
+        NSLog(@"found pNeedle at %p", pNeedle);
+        if(pNeedle == NULL) {
+            exit(0);
+        }
+        pEVP_DigestVerifyFinal = pNeedle - 0x2c;
+    } else {
+        // Dylib OpenSSL version (>= 4.14)
+        NSLog(@"Retriving EVP_DigestVerifyFinal using symbol because there's OpenSSL framework: %p", image);
+        pEVP_DigestVerifyFinal = MSFindSymbol(image, "_EVP_DigestVerifyFinal");
     }
-    void *pEVP_DigestVerifyFinal = pNeedle - 0x2c;
+    NSLog(@"Got EVP_DigestVerifyFinal: %p", pEVP_DigestVerifyFinal);
+
     %init;
 }
