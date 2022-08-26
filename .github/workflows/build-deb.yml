@@ -36,6 +36,11 @@ jobs:
       run: |
         rm -f packages/*
         make package FINALPACKAGE=1
+    
+    - name: Upload to GitHub Actions artifact
+      uses: NyaMisty/upload-artifact-as-is@master
+      with:
+        path: packages/*
 
     - name: Release
       uses: softprops/action-gh-release@v1
