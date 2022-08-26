@@ -152,10 +152,18 @@ void *pEVP_DigestVerifyFinal = NULL;
     return 1;
 }
 
+#include <dlfcn.h>
+
 %ctor {
     // In Surge >= v4.14.0, OpenSSL is no longer statically linked
-    MSImageRef image = MSGetImageByName("@rpath/OpenSSL.framework/OpenSSL");
-    if (!image) {
+
+    NSString *execPath = [[NSBundle mainBundle] executablePath].stringByDeletingLastPathComponent;
+    while ([execPath containsString:@"/PlugIns"]) {
+        execPath = execPath.stringByDeletingLastPathComponent;
+    }
+    NSString *openSSLPath = [NSString stringWithFormat:@"%@/%@", execPath, @"Frameworks/OpenSSL.framework/OpenSSL"];
+    NSLog(@"OpenSSL Framework: %@", openSSLPath);
+    if (![[NSFileManager defaultManager] fileExistsAtPath:openSSLPath]) {
         // Static OpenSSL version (<= 4.13.0)
         NSLog(@"Retriving EVP_DigestVerifyFinal using pattern because there's no OpenSSL framework");
         unsigned char needle[] = "\x08\x01\x40\xF9\xA8\x83\x1C\xF8\xFF\x07\x00\xB9\x00\x10\x40\xF9\x08\x00\x40\xF9\x18\x45\x40\xF9\xA8\x46\x40\x39\x08\x02\x08\x37";
@@ -170,11 +178,24 @@ void *pEVP_DigestVerifyFinal = NULL;
         }
         pEVP_DigestVerifyFinal = pNeedle - 0x2c;
     } else {
+        NSLog(@"OpenSSL framework exists!");
+        void *ret = dlopen([openSSLPath UTF8String], RTLD_NOW | RTLD_GLOBAL);
+        NSLog(@"OpenSSL framework load result: %p", ret);
+
+        MSImageRef image = MSGetImageByName([openSSLPath UTF8String]);
         // Dylib OpenSSL version (>= 4.14)
         NSLog(@"Retriving EVP_DigestVerifyFinal using symbol because there's OpenSSL framework: %p", image);
         pEVP_DigestVerifyFinal = MSFindSymbol(image, "_EVP_DigestVerifyFinal");
     }
     NSLog(@"Got EVP_DigestVerifyFinal: %p", pEVP_DigestVerifyFinal);
+
+    
+    NSLog(@"Surge3ProLicenseEmail: %@", [[NSUbiquitousKeyValueStore defaultStore] stringForKey: @"Surge3ProLicenseEmail"]);
+    NSLog(@"Surge3ProLicenseKey: %@", [[NSUbiquitousKeyValueStore defaultStore] stringForKey: @"Surge3ProLicenseKey"]);
+    if (![[NSUbiquitousKeyValueStore defaultStore] stringForKey: @"Surge3ProLicenseEmail"]) {
+        [[NSUbiquitousKeyValueStore defaultStore] setString:@"example@example.com" forKey:@"Surge3ProLicenseEmail"];
+        [[NSUbiquitousKeyValueStore defaultStore] setString:@"ABCDEFGH" forKey: @"Surge3ProLicenseKey"];
+    }
 
     %init;
 }
