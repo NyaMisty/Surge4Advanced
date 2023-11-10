@@ -166,17 +166,27 @@ void *pEVP_DigestVerifyFinal = NULL;
     if (![[NSFileManager defaultManager] fileExistsAtPath:openSSLPath]) {
         // Static OpenSSL version (<= 4.13.0)
         NSLog(@"Retriving EVP_DigestVerifyFinal using pattern because there's no OpenSSL framework");
-        unsigned char needle[] = "\x08\x01\x40\xF9\xA8\x83\x1C\xF8\xFF\x07\x00\xB9\x00\x10\x40\xF9\x08\x00\x40\xF9\x18\x45\x40\xF9\xA8\x46\x40\x39\x08\x02\x08\x37";
-        intptr_t imgBase = (intptr_t)_dyld_get_image_vmaddr_slide(0) + 0x100000000LL;
-        intptr_t imgBase2 = (intptr_t)_dyld_get_image_header(0);
-        NSLog(@"Surge image base at %p %p", (void *)imgBase, (void *)imgBase2);
-        //NSLog(@"Surge hdr %x %x %x %x %x", *(uint32_t *)(imgBase + 0x236730), *(uint32_t *)(imgBase + 0x236734), *(uint32_t *)(imgBase + 0x236738), *(uint32_t *)(imgBase + 0x23673c), *(uint32_t *)(imgBase + 0x236740));
+        // unsigned char needle[] = "\x08\x01\x40\xF9\xA8\x83\x1C\xF8\xFF\x07\x00\xB9\x00\x10\x40\xF9\x08\x00\x40\xF9\x18\x45\x40\xF9\xA8\x46\x40\x39\x08\x02\x08\x37"; // Surge 4
+        // int needleOffset = -0x2c;
+        unsigned char needle[] = "\xff\x83\x02\xd1\xf8\x5f\x06\xa9\xf6\x57\x07\xa9\xf4\x4f\x08\xa9\xfd\x7b\x09\xa9\xfd\x43\x02\x91\xf3\x03\x02\xaa\xf4\x03\x01\xaa\xf5\x03\x00\xaa"; // Surge5
+        int needleOffset = 0;
+
+        int imgIndex = 0;
+        if (!strcmp(_dyld_get_image_name(0), "/usr/lib/systemhook.dylib")) {
+            imgIndex = 1; // dopamiqne fix
+        }
+        intptr_t imgBase = (intptr_t)_dyld_get_image_vmaddr_slide(imgIndex) + 0x100000000LL;
+        intptr_t imgBase2 = (intptr_t)_dyld_get_image_header(imgIndex);
+        NSLog(@"Surge image base at %p %p (%s)", (void *)imgBase, (void *)imgBase2, _dyld_get_image_name(imgIndex));
+        imgBase = imgBase2;
+        // NSLog(@"Surge hdr %x %x %x %x %x", *(uint32_t *)(imgBase + 0x236730), *(uint32_t *)(imgBase + 0x236734), *(uint32_t *)(imgBase + 0x236738), *(uint32_t *)(imgBase + 0x23673c), *(uint32_t *)(imgBase + 0x236740));
+        NSLog(@"Surge hdr %x", *(uint32_t *)(imgBase + 0x3744c4));
         char *pNeedle = (char *)memmem((void *)imgBase, 0x400000, needle, sizeof(needle) - 1);
         NSLog(@"found pNeedle at %p", pNeedle);
         if(pNeedle == NULL) {
             exit(0);
         }
-        pEVP_DigestVerifyFinal = pNeedle - 0x2c;
+        pEVP_DigestVerifyFinal = pNeedle + needleOffset;
     } else {
         NSLog(@"OpenSSL framework exists!");
         void *ret = dlopen([openSSLPath UTF8String], RTLD_NOW | RTLD_GLOBAL);
@@ -190,12 +200,13 @@ void *pEVP_DigestVerifyFinal = NULL;
     NSLog(@"Got EVP_DigestVerifyFinal: %p", pEVP_DigestVerifyFinal);
 
     
-    NSLog(@"Surge3ProLicenseEmail: %@", [[NSUbiquitousKeyValueStore defaultStore] stringForKey: @"Surge3ProLicenseEmail"]);
-    NSLog(@"Surge3ProLicenseKey: %@", [[NSUbiquitousKeyValueStore defaultStore] stringForKey: @"Surge3ProLicenseKey"]);
-    if (![[NSUbiquitousKeyValueStore defaultStore] stringForKey: @"Surge3ProLicenseEmail"]) {
-        [[NSUbiquitousKeyValueStore defaultStore] setString:@"example@example.com" forKey:@"Surge3ProLicenseEmail"];
-        [[NSUbiquitousKeyValueStore defaultStore] setString:@"ABCDEFGH" forKey: @"Surge3ProLicenseKey"];
-    }
+    // NOT Available in Surge5
+    // NSLog(@"Surge3ProLicenseEmail: %@", [[NSUbiquitousKeyValueStore defaultStore] stringForKey: @"Surge3ProLicenseEmail"]);
+    // NSLog(@"Surge3ProLicenseKey: %@", [[NSUbiquitousKeyValueStore defaultStore] stringForKey: @"Surge3ProLicenseKey"]);
+    // if (![[NSUbiquitousKeyValueStore defaultStore] stringForKey: @"Surge3ProLicenseEmail"]) {
+    //     [[NSUbiquitousKeyValueStore defaultStore] setString:@"example@example.com" forKey:@"Surge3ProLicenseEmail"];
+    //     [[NSUbiquitousKeyValueStore defaultStore] setString:@"ABCDEFGH" forKey: @"Surge3ProLicenseKey"];
+    // }
 
     %init;
 }
