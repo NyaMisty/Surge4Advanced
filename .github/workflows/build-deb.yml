@@ -6,6 +6,8 @@ on:
     #  - 'v*'
 
     #branches: [ master ]
+  release:
+    types: [published]
 
 jobs:
   build:
@@ -32,10 +34,22 @@ jobs:
     - name: Prepare Theos
       uses: Randomblock1/theos-action@v1
 
-    - name: Build package
+    - name: Get tag
+      if: ${{ startsWith(github.ref, 'refs/tags/') }}
+      id: tag
+      uses: dawidd6/action-get-tag@v1
+    - name: Build Release package - Rootful Substrate
+      if: ${{ startsWith(github.ref, 'refs/tags/') }}
       run: |
-        rm -f packages/*
-        make package FINALPACKAGE=1
+        make clean
+        TAGNAME=${{ steps.tag.outputs.tag }}
+        make package FINALPACKAGE=1 PACKAGE_VERSION=${TAGNAME#v}+rootful
+    - name: Build Release package - Rootless Substrate
+      if: ${{ startsWith(github.ref, 'refs/tags/') }}
+      run: |
+        make clean
+        TAGNAME=${{ steps.tag.outputs.tag }}
+        make package ROOTLESS=1 FINALPACKAGE=1 PACKAGE_VERSION=${TAGNAME#v}+rootless
     
     - name: Upload to GitHub Actions artifact
       uses: NyaMisty/upload-artifact-as-is@master
