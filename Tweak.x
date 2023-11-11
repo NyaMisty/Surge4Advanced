@@ -171,10 +171,23 @@ void *pEVP_DigestVerifyFinal = NULL;
         unsigned char needle[] = "\xff\x83\x02\xd1\xf8\x5f\x06\xa9\xf6\x57\x07\xa9\xf4\x4f\x08\xa9\xfd\x7b\x09\xa9\xfd\x43\x02\x91\xf3\x03\x02\xaa\xf4\x03\x01\xaa\xf5\x03\x00\xaa"; // Surge5
         int needleOffset = 0;
 
-        int imgIndex = 0;
-        if (!strcmp(_dyld_get_image_name(0), "/usr/lib/systemhook.dylib")) {
-            imgIndex = 1; // dopamiqne fix
+        int imgIndex = -1;
+        const char surgeImagePath[] = "/private/var/containers/Bundle/Application";
+        for (int i = 0; i < _dyld_image_count(); i++) {
+            // traditional: none
+            // dopamine: "/usr/lib/systemhook.dylib"
+            // rootHide: "/usr/lib/systemhook-D836C275A53415DD.dylib"
+            NSLog(@"Finding Surge module: %s", _dyld_get_image_name(i));
+            if (!strncmp(_dyld_get_image_name(i), surgeImagePath, sizeof(surgeImagePath)-1)) {
+                imgIndex = i;
+                break;
+            }
         }
+        if (imgIndex == -1) {
+            NSLog(@"Cannot find surge main executable under %s", surgeImagePath);
+            exit(1);
+        }
+        NSLog(@"Got Surge module at index %d: %s", imgIndex, _dyld_get_image_name(imgIndex));
         intptr_t imgBase = (intptr_t)_dyld_get_image_vmaddr_slide(imgIndex) + 0x100000000LL;
         intptr_t imgBase2 = (intptr_t)_dyld_get_image_header(imgIndex);
         NSLog(@"Surge image base at %p %p (%s)", (void *)imgBase, (void *)imgBase2, _dyld_get_image_name(imgIndex));
@@ -184,7 +197,7 @@ void *pEVP_DigestVerifyFinal = NULL;
         char *pNeedle = (char *)memmem((void *)imgBase, 0x400000, needle, sizeof(needle) - 1);
         NSLog(@"found pNeedle at %p", pNeedle);
         if(pNeedle == NULL) {
-            exit(0);
+            exit(1);
         }
         pEVP_DigestVerifyFinal = pNeedle + needleOffset;
     } else {
