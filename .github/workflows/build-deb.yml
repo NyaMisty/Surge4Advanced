@@ -22,7 +22,8 @@ jobs:
     - name: Check cache
       id: verify-cache
       run: |
-        echo "::set-output name=heads::`git ls-remote https://github.com/theos/theos | head -n 1 | cut -f 1`-`git ls-remote https://github.com/xybp888/iOS-SDKs | head -n 1 | cut -f 1`"
+        #echo "::set-output name=heads::`git ls-remote https://github.com/theos/theos | head -n 1 | cut -f 1`-`git ls-remote https://github.com/xybp888/iOS-SDKs | head -n 1 | cut -f 1`"
+        echo "::set-output name=heads::`git ls-remote https://github.com/roothide/theos | head -n 1 | cut -f 1`-`git ls-remote https://github.com/xybp888/iOS-SDKs | head -n 1 | cut -f 1`"
 
     - name: Use cache
       id: cache
@@ -33,6 +34,8 @@ jobs:
 
     - name: Prepare Theos
       uses: Randomblock1/theos-action@v1
+      with:
+        theos-src: 'https://github.com/roothide/theos'
 
     - name: Get tag
       if: ${{ startsWith(github.ref, 'refs/tags/') }}
